@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TPV</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Pantalla de acceso: código de camarero -->
+  <section id="login" class="screen" hidden>
+    <div class="pin-card">
+      <h1>Introduzca su código</h1>
+      <div class="pin-display" id="login-display"></div>
+      <p class="error" id="login-error"></p>
+      <div class="keypad" data-target="login"></div>
+      <div class="link-row">
+        <button class="link-btn" id="open-admin">Configuración</button>
+        <button class="link-btn" id="open-close">Apagar TPV</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pantalla principal del TPV -->
+  <section id="pos" class="screen" hidden>
+    <header class="topbar">
+      <div class="who">
+        <strong id="waiter-name"></strong>
+        <span id="clock"></span>
+      </div>
+      <div class="top-actions">
+        <button id="btn-day">Abrir día</button>
+        <button id="btn-drawer">Abrir cajón</button>
+        <button id="btn-config">Configuración</button>
+        <button id="btn-logout">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <p class="day-banner" id="day-banner" hidden>El día está cerrado. Ábralo para empezar a crear cuentas.</p>
+
+    <main class="pos-body">
+      <div class="menu-side">
+        <nav class="categories" id="categories"></nav>
+        <div class="products" id="products"></div>
+      </div>
+
+      <aside class="ticket">
+        <h2>Ticket</h2>
+        <ul class="lines" id="lines"></ul>
+        <div class="total-row">
+          <span>Total</span>
+          <strong id="total">0,00 €</strong>
+        </div>
+        <div class="pay-buttons">
+          <button class="pay cash" id="btn-cash">Efectivo</button>
+          <button class="pay card" id="btn-card">Tarjeta</button>
+        </div>
+        <button class="clear" id="btn-clear">Vaciar ticket</button>
+      </aside>
+    </main>
+  </section>
+
+  <!-- Configuración (protegida por código admin) -->
+  <section id="settings" class="screen" hidden>
+    <header class="topbar">
+      <strong>Configuración</strong>
+      <button id="btn-settings-back">Volver</button>
+    </header>
+    <nav class="tabs">
+      <button data-tab="waiters">Camareros</button>
+      <button data-tab="products">Productos</button>
+      <button data-tab="categories">Categorías</button>
+      <button data-tab="codes">Códigos</button>
+      <button data-tab="settings">Ajustes</button>
+    </nav>
+    <div class="settings-body" id="settings-body"></div>
+  </section>
+
+  <!-- Modal: resumen del día -->
+  <div class="modal" id="modal-summary" hidden>
+    <div class="modal-card">
+      <h2 id="summary-title">Resumen del día</h2>
+      <dl>
+        <dt>Tickets</dt><dd id="sum-count">0</dd>
+        <dt>Efectivo</dt><dd id="sum-cash">0,00 €</dd>
+        <dt>Tarjeta</dt><dd id="sum-card">0,00 €</dd>
+        <dt>Total</dt><dd id="sum-total">0,00 €</dd>
+        <dt>Cierre</dt><dd id="sum-how">Manual</dd>
+      </dl>
+      <button class="modal-close" data-close="modal-summary">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Modal: código de camarero para abrir el cajón sin ticket -->
+  <div class="modal" id="modal-drawer" hidden>
+    <div class="modal-card">
+      <h2>Código de camarero</h2>
+      <p class="hint">No hay ticket en curso. Introduzca su código para abrir el cajón.</p>
+      <div class="pin-display" id="drawer-display"></div>
+      <p class="error" id="drawer-error"></p>
+      <div class="keypad" data-target="drawer"></div>
+      <button class="modal-close" data-close="modal-drawer">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal: código de camarero o administración para abrir/cerrar el día -->
+  <div class="modal" id="modal-day" hidden>
+    <div class="modal-card">
+      <h2 id="day-title">Abrir día</h2>
+      <p class="hint" id="day-hint"></p>
+      <div class="pin-display" id="day-display"></div>
+      <p class="error" id="day-error"></p>
+      <div class="keypad" data-target="day"></div>
+      <button class="modal-close" data-close="modal-day">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal: código de administración -->
+  <div class="modal" id="modal-admin" hidden>
+    <div class="modal-card">
+      <h2>Código de administración</h2>
+      <div class="pin-display" id="admin-display"></div>
+      <p class="error" id="admin-error"></p>
+      <div class="keypad" data-target="admin"></div>
+      <button class="modal-close" data-close="modal-admin">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal: código para cerrar la aplicación -->
+  <div class="modal" id="modal-close" hidden>
+    <div class="modal-card">
+      <h2>Código de cierre</h2>
+      <div class="pin-display" id="close-display"></div>
+      <p class="error" id="close-error"></p>
+      <div class="keypad" data-target="close"></div>
+      <button class="modal-close" data-close="modal-close">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Teclado virtual para los campos de Configuración (el TPV no tiene teclado) -->
+  <div class="vkb" id="vkb" hidden></div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

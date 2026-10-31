@@ -1,0 +1,55 @@
+{
+  "name": "tpv-escritorio",
+  "productName": "TPV",
+  "version": "1.0.0",
+  "description": "TPV de escritorio para Windows, funciona sin conexión",
+  "main": "src/main/main.js",
+  "author": "",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "33.2.0",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.tpv.escritorio",
+    "productName": "TPV",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "src/main/print-raw.ps1"
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
