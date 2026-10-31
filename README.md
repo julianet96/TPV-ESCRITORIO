@@ -38,8 +38,10 @@ Ningún código puede repetirse entre camareros, administración y cierre. La se
 
 ## Instalación
 
-- `dist\TPV Setup 1.0.0.exe`: instalador.
-- `dist\TPV 1.0.0.exe`: versión portable, no necesita instalación.
+- `dist\TPV Setup 2.0.0.exe`: instalador.
+- `dist\TPV 2.0.0.exe`: versión portable, no necesita instalación.
+
+La versión 1.0.0 se conserva en `releases\1.0.0\` (no se versiona en git).
 
 ## Datos
 
