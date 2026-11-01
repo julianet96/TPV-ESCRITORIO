@@ -709,6 +709,35 @@ body.kb-open .settings-body { padding-bottom: 400px; }
 .form-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .form-actions .pay { min-height: 52px; font-size: 1rem; border-radius: var(--radius-sm); }
 
+/* ---------- Informes ---------- */
+.report {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-self: start;
+}
+.report h3 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.report .hint { margin: 0; }
+.report .rows { background: var(--bg); align-self: stretch; }
+.report .rows li strong { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.report-totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px 16px;
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+}
+.report-totals dt { color: var(--muted); }
+.report-totals dd { margin: 0; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+.report .form-actions .pay { min-height: 56px; font-size: 1rem; }
+
 /* ---------- Histórico de comandas ---------- */
 /* Fuera de la barra superior: en la cabecera del ticket, lejos de Día, Cajón y Configuración. */
 .history-btn {

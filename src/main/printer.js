@@ -19,9 +19,12 @@ function eur(cents, currency) {
   return (cents / 100).toLocaleString('es-ES', { style: 'currency', currency: currency || 'EUR' });
 }
 
+// Una línea con texto a la izquierda y valor a la derecha. Si no cabe, se recorta el texto de la izquierda.
 function line(left, right) {
-  const space = Math.max(1, WIDTH - left.length - right.length);
-  return left + ' '.repeat(space) + right + '\n';
+  const maxLeft = Math.max(0, WIDTH - right.length - 1);
+  const text = left.length > maxLeft ? left.slice(0, maxLeft) : left;
+  const space = Math.max(1, WIDTH - text.length - right.length);
+  return text + ' '.repeat(space) + right + '\n';
 }
 
 function buildTicket(sale, cfg, { reprint = false } = {}) {
@@ -96,10 +99,70 @@ async function afterSale(sale, cfg) {
   if (problems.length) throw new Error(problems.join('. '));
 }
 
+// Formato de los informes (día y semana), listo para imprimir con buildReport.
+function fmtDate(iso) {
+  return new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function dayReportSpec(report, cfg) {
+  const money = (cents) => eur(cents, cfg.currency);
+  const subtitle = [
+    report.open ? 'Estado: día abierto' : 'Estado: último día cerrado',
+    `Apertura: ${fmtDate(report.day.openedAt)}`,
+  ];
+  if (report.day.closedAt) subtitle.push(`Cierre: ${fmtDate(report.day.closedAt)}`);
+  const rows = report.waiters.length
+    ? report.waiters.map((w) => ({ left: `${w.name} (${w.count})`, right: money(w.totalCents) }))
+    : [{ left: 'Sin ventas', right: money(0) }];
+  return {
+    title: 'INFORME DEL DÍA',
+    subtitle,
+    rows,
+    totals: [
+      { left: 'Efectivo', right: money(report.cashCents) },
+      { left: 'Tarjeta', right: money(report.cardCents) },
+      { left: `TOTAL (${report.count} tickets)`, right: money(report.totalCents) },
+    ],
+  };
+}
+
+function weekReportSpec(report, cfg) {
+  const money = (cents) => eur(cents, cfg.currency);
+  const rows = report.days.length
+    ? report.days.map((d) => ({ left: `${fmtDate(d.openedAt)}${d.open ? ' *' : ''} (${d.count})`, right: money(d.totalCents) }))
+    : [{ left: 'Sin días registrados', right: money(0) }];
+  return {
+    title: 'INFORME SEMANAL',
+    subtitle: ['Últimos 7 días (* = día abierto)'],
+    rows,
+    totals: [{ left: `TOTAL (${report.count} tickets)`, right: money(report.totalCents) }],
+  };
+}
+
+// Texto de un informe: cabecera, título, líneas y totales. Mismo formato que el ticket.
+function buildReport(cfg, spec) {
+  let text = '';
+  text += cfg.businessName.padStart(Math.floor((WIDTH + cfg.businessName.length) / 2)) + '\n';
+  text += '-'.repeat(WIDTH) + '\n';
+  text += spec.title + '\n';
+  for (const s of spec.subtitle) text += s + '\n';
+  text += '-'.repeat(WIDTH) + '\n';
+  for (const r of spec.rows) text += line(r.left, r.right);
+  text += '-'.repeat(WIDTH) + '\n';
+  for (const t of spec.totals) text += line(t.left, t.right);
+  text += '\n\n\n';
+  return Buffer.concat([INIT, encode(text), CUT]);
+}
+
+async function printReport(cfg, spec) {
+  if (!cfg.ticketPrinterName) throw new Error('No hay impresora de tickets configurada');
+  await sendRaw(cfg.ticketPrinterName, buildReport(cfg, spec));
+}
+
 // Imprime solo el ticket (desde el histórico de comandas). Lanza error si no hay impresora de tickets.
 async function printTicket(sale, cfg, options) {
   if (!cfg.ticketPrinterName) throw new Error('No hay impresora de tickets configurada');
   await sendRaw(cfg.ticketPrinterName, buildTicket(sale, cfg, options));
 }
 
-module.exports = { openDrawer, afterSale, printTicket, buildTicket };
+module.exports = { openDrawer, afterSale, printTicket, buildTicket, dayReportSpec, weekReportSpec, printReport };

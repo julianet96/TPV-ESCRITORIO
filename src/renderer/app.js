@@ -466,6 +466,7 @@ async function submitAdmin() {
     $('modal-admin').hidden = true;
     await loadAdminData();
     state.editingId = null;
+    state.reports = null;
     showScreen('settings');
     renderSettings();
   } catch (err) {
@@ -545,7 +546,23 @@ function renderSettings() {
   for (const b of document.querySelectorAll('[data-tab]')) {
     b.classList.toggle('active', b.dataset.tab === state.adminTab);
   }
+  // Los informes se piden al proceso principal antes de pintar la pestaña.
+  if (state.adminTab === 'reports' && !state.reports) {
+    $('settings-body').innerHTML = '<p class="hint">Cargando informes…</p>';
+    loadReports().then(renderSettings).catch((err) => {
+      $('settings-body').innerHTML = '<p class="hint">No se pudieron cargar los informes.</p>';
+      toast(errorText(err), 'bad');
+    });
+    return;
+  }
   $('settings-body').innerHTML = TABS[state.adminTab]();
+}
+
+async function loadReports() {
+  state.reports = {
+    day: await window.tpv.admin.reportDay(),
+    week: await window.tpv.admin.reportWeek(),
+  };
 }
 
 const TABS = {
@@ -628,6 +645,49 @@ const TABS = {
       `<p class="hint">El cajón nunca imprime un ticket: solo recibe el pulso de apertura.</p>` +
       fieldHtml('autoCloseHours', 'Cierre automático del día (horas abierto, 1 a 48)', { type: 'number', value: s.autoCloseHours, extra: 'min="1" max="48" step="1" inputmode="numeric"' });
     return formHtml('save-settings', 'Ajustes del negocio', body, 'Guardar ajustes');
+  },
+
+  reports() {
+    const { day, week } = state.reports;
+    const tickets = (n) => (n === 1 ? '1 ticket' : `${n} tickets`);
+    const printButton = (id) => `<div class="form-actions"><button type="button" data-row="print-report" data-id="${id}" class="pay card">Imprimir en ticket</button></div>`;
+
+    // Informe del día: camarero, tickets e importe, y el total.
+    const dayRows = !day
+      ? '<li><span>No hay ningún día registrado</span></li>'
+      : day.waiters.length
+        ? day.waiters.map((w) => `<li><span>${escapeHtml(w.name)} · ${tickets(w.count)}</span><strong>${money(w.totalCents)}</strong></li>`).join('')
+        : `<li><span>Sin ventas</span><strong>${money(0)}</strong></li>`;
+    const dayState = day
+      ? `${day.open ? 'Día abierto' : 'Último día cerrado'} · ${historyDate(day.day.openedAt)}${day.day.closedAt ? ` → ${historyDate(day.day.closedAt)}` : ''}`
+      : '';
+    const dayCard = `<section class="report">
+      <h3>Informe del día</h3>
+      <p class="hint">${escapeHtml(dayState)}</p>
+      <ul class="rows">${dayRows}</ul>
+      ${day ? `<dl class="report-totals">
+        <dt>Efectivo</dt><dd>${money(day.cashCents)}</dd>
+        <dt>Tarjeta</dt><dd>${money(day.cardCents)}</dd>
+        <dt>Total (${tickets(day.count)})</dt><dd>${money(day.totalCents)}</dd>
+      </dl>` : ''}
+      ${printButton('day')}
+    </section>`;
+
+    // Informe semanal: cada día de los últimos 7 con su importe.
+    const weekRows = week.days.length
+      ? week.days.map((d) => `<li><span>${historyDate(d.openedAt)}${d.open ? ' · abierto' : ''} · ${tickets(d.count)}</span><strong>${money(d.totalCents)}</strong></li>`).join('')
+      : '<li><span>No hay días registrados</span></li>';
+    const weekCard = `<section class="report">
+      <h3>Últimos 7 días</h3>
+      <p class="hint">Un día por línea, de más antiguo a más reciente.</p>
+      <ul class="rows">${weekRows}</ul>
+      ${week.days.length ? `<dl class="report-totals">
+        <dt>Total (${tickets(week.count)})</dt><dd>${money(week.totalCents)}</dd>
+      </dl>` : ''}
+      ${printButton('week')}
+    </section>`;
+
+    return dayCard + weekCard;
   },
 };
 
@@ -812,6 +872,8 @@ function init() {
     b.addEventListener('click', () => {
       state.adminTab = b.dataset.tab;
       state.editingId = null;
+      // Cada vez que se entra en Informes se vuelven a pedir los datos.
+      if (b.dataset.tab === 'reports') state.reports = null;
       renderSettings();
     });
   }
@@ -837,6 +899,18 @@ function init() {
     if (!btn) return;
     const { row, id } = btn.dataset;
 
+    if (row === 'print-report') {
+      btn.disabled = true;
+      try {
+        await window.tpv.admin.printReport(id);
+        toast('Informe impreso');
+      } catch (err) {
+        toast(errorText(err), 'bad');
+      } finally {
+        btn.disabled = false;
+      }
+      return;
+    }
     if (row.startsWith('edit-')) {
       state.editingId = id;
       return renderSettings();

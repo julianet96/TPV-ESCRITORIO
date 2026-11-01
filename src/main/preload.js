@@ -28,5 +28,8 @@ contextBridge.exposeInMainWorld('tpv', {
     saveSettings: (values) => ipcRenderer.invoke('admin:save-settings', values),
     setCode: (values) => ipcRenderer.invoke('admin:set-code', values),
     printers: () => ipcRenderer.invoke('admin:printers'),
+    reportDay: () => ipcRenderer.invoke('admin:report-day'),
+    reportWeek: () => ipcRenderer.invoke('admin:report-week'),
+    printReport: (type) => ipcRenderer.invoke('admin:report-print', type),
   },
 });

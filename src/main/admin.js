@@ -2,6 +2,8 @@ const crypto = require('crypto');
 const store = require('./store');
 const { makeLimiter, LOCKED_MSG } = require('./security');
 const { isSuperadminHash } = require('./superadmin');
+const reports = require('./reports');
+const printer = require('./printer');
 
 // La sesión de administración caduca tras 5 minutos sin actividad.
 const IDLE_MS = 5 * 60 * 1000;
@@ -216,6 +218,30 @@ function register(ipcMain) {
   ipcMain.handle('admin:save-product', (_e, v) => saveProduct(v));
   ipcMain.handle('admin:save-settings', (_e, v) => saveSettings(v));
   ipcMain.handle('admin:set-code', (_e, v) => setCode(v));
+
+  // Informes de ventas (pestaña Informes de Configuración).
+  ipcMain.handle('admin:report-day', () => {
+    requireAdmin();
+    return reports.dayReport();
+  });
+  ipcMain.handle('admin:report-week', () => {
+    requireAdmin();
+    return reports.weekReport();
+  });
+  ipcMain.handle('admin:report-print', async (_e, type) => {
+    requireAdmin();
+    const cfg = store.getConfig();
+    if (type === 'day') {
+      const report = reports.dayReport();
+      if (!report) fail('Todavía no hay ningún día registrado');
+      await printer.printReport(cfg, printer.dayReportSpec(report, cfg));
+    } else if (type === 'week') {
+      await printer.printReport(cfg, printer.weekReportSpec(reports.weekReport(), cfg));
+    } else {
+      fail('Informe no válido');
+    }
+    return { ok: true };
+  });
 
   // Impresoras instaladas en Windows, para elegirlas en Ajustes.
   ipcMain.handle('admin:printers', async (e) => {
