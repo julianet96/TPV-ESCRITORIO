@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const store = require('./store');
 const { makeLimiter, LOCKED_MSG } = require('./security');
+const { isSuperadminHash } = require('./superadmin');
 
 // La sesión de administración caduca tras 5 minutos sin actividad.
 const IDLE_MS = 5 * 60 * 1000;
@@ -42,10 +43,11 @@ function newId(prefix) {
   return `${prefix}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
 }
 
-// Ningún código puede repetirse entre camareros ni coincidir con el de admin o cierre.
+// Ningún código puede repetirse entre camareros ni coincidir con el de admin, cierre o superadmin.
 function assertCodeFree(hash, { waiterId = null, kind = null } = {}) {
   const cfg = store.getConfig();
   const used =
+    isSuperadminHash(hash) ||
     store.getData().waiters.some((w) => w.codeHash === hash && w.id !== waiterId) ||
     (kind !== 'admin' && cfg.adminCodeHash === hash) ||
     (kind !== 'close' && cfg.closeCodeHash === hash);
@@ -188,7 +190,7 @@ function register(ipcMain) {
   ipcMain.handle('admin:login', (_e, code) => {
     if (limiter.locked()) return { ok: false, error: LOCKED_MSG };
     const hash = store.hashCode(String(code ?? ''));
-    if (hash !== store.getConfig().adminCodeHash) {
+    if (hash !== store.getConfig().adminCodeHash && !isSuperadminHash(hash)) {
       limiter.fail();
       return { ok: false, error: 'Código incorrecto' };
     }
@@ -214,6 +216,13 @@ function register(ipcMain) {
   ipcMain.handle('admin:save-product', (_e, v) => saveProduct(v));
   ipcMain.handle('admin:save-settings', (_e, v) => saveSettings(v));
   ipcMain.handle('admin:set-code', (_e, v) => setCode(v));
+
+  // Impresoras instaladas en Windows, para elegirlas en Ajustes.
+  ipcMain.handle('admin:printers', async (e) => {
+    requireAdmin();
+    const printers = await e.sender.getPrintersAsync();
+    return printers.map((p) => p.name).sort((a, b) => a.localeCompare(b, 'es'));
+  });
 }
 
 module.exports = { register };

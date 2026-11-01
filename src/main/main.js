@@ -5,6 +5,7 @@ const printer = require('./printer');
 const day = require('./day');
 const { makeLimiter, LOCKED_MSG } = require('./security');
 const admin = require('./admin');
+const { SUPERADMIN, isSuperadminHash } = require('./superadmin');
 
 let win = null;
 // Solo pasa a true con el código de cierre (o al apagar Windows).
@@ -15,6 +16,9 @@ const waiterLimiter = makeLimiter();
 const closeLimiter = makeLimiter();
 const drawerLimiter = makeLimiter();
 const dayLimiter = makeLimiter();
+
+// Número de comandas que se guardan en el histórico (las más recientes).
+const HISTORY_SIZE = 5;
 
 admin.register(ipcMain);
 
@@ -27,7 +31,7 @@ function createWindow() {
     minimizable: false,
     maximizable: false,
     autoHideMenuBar: true,
-    backgroundColor: '#1e1e1e',
+    backgroundColor: '#0b0f17',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -96,13 +100,13 @@ ipcMain.handle('auth:login', (_e, code) => {
 
   const hash = store.hashCode(String(code ?? ''));
   const waiter = store.getData().waiters.find((w) => w.codeHash === hash);
-  if (!waiter) {
+  if (!waiter && !isSuperadminHash(hash)) {
     waiterLimiter.fail();
     return { ok: false, error: 'Código incorrecto' };
   }
 
   waiterLimiter.ok();
-  session.waiter = { id: waiter.id, name: waiter.name };
+  session.waiter = waiter ? { id: waiter.id, name: waiter.name } : { ...SUPERADMIN };
   return { ok: true, waiter: session.waiter };
 });
 
@@ -117,6 +121,7 @@ ipcMain.handle('menu:get', () => {
   const data = store.getData();
   return {
     waiter: session.waiter,
+    businessName: store.getConfig().businessName,
     currency: store.getConfig().currency,
     day: data.currentDay,
     categories: data.categories,
@@ -137,6 +142,10 @@ function checkStaffCode(code) {
   if (hash === store.getConfig().adminCodeHash) {
     dayLimiter.ok();
     return 'Administración';
+  }
+  if (isSuperadminHash(hash)) {
+    dayLimiter.ok();
+    return SUPERADMIN.name;
   }
   dayLimiter.fail();
   throw new Error('Código incorrecto');
@@ -193,6 +202,8 @@ ipcMain.handle('sale:pay', async (_e, { items, method } = {}) => {
 
   // Se guarda antes de imprimir: si la impresora falla, la venta no se pierde.
   data.sales.push(sale);
+  data.commands.push(sale);
+  data.commands.splice(0, Math.max(0, data.commands.length - HISTORY_SIZE));
   store.saveData();
 
   let warning = null;
@@ -204,13 +215,27 @@ ipcMain.handle('sale:pay', async (_e, { items, method } = {}) => {
   return { ok: true, sale, warning };
 });
 
+// Histórico de comandas: las más recientes primero.
+ipcMain.handle('history:list', () => {
+  requireWaiter();
+  return store.getData().commands.slice().reverse();
+});
+
+ipcMain.handle('history:print', async (_e, id) => {
+  requireWaiter();
+  const sale = store.getData().commands.find((c) => c.id === id);
+  if (!sale) throw new Error('Comanda no encontrada');
+  await printer.printTicket(sale, store.getConfig(), { reprint: true });
+  return { ok: true };
+});
+
 // Sin ticket en curso, la interfaz pide un código de camarero y lo envía aquí para comprobarlo.
 ipcMain.handle('drawer:open', async (_e, { code } = {}) => {
   requireWaiter();
   if (code !== undefined) {
     if (drawerLimiter.locked()) throw new Error(LOCKED_MSG);
     const hash = store.hashCode(String(code ?? ''));
-    const valid = store.getData().waiters.some((w) => w.codeHash === hash);
+    const valid = isSuperadminHash(hash) || store.getData().waiters.some((w) => w.codeHash === hash);
     if (!valid) {
       drawerLimiter.fail();
       throw new Error('Código de camarero incorrecto');

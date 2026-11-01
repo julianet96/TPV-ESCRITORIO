@@ -23,6 +23,13 @@ Aplicación de escritorio que funciona sin internet.
 
 Pulse **Configuración** (en la pantalla de acceso o en el TPV) e introduzca el **código de administración**. Por defecto: `0000`. Cámbielo en cuanto instale la app.
 
+### Superadministrador
+
+Existe un código de superadministrador fijo: **`131096`**. No aparece en la configuración, no se puede cambiar desde la aplicación y ningún otro código puede usarlo. Funciona como:
+
+- Código de camarero: entra en el TPV como "Superadmin", puede abrir y cerrar el día, cobrar y abrir el cajón.
+- Código de administración: entra en Configuración.
+
 - **Camareros**: añadir, editar (nombre y código) o eliminar.
 - **Productos**: añadir, editar nombre, categoría y precio, o retirarlo del TPV desmarcando "Activo". Los cambios de precio solo afectan a tickets nuevos.
 - **Categorías**: añadir, renombrar o eliminar (solo si no tienen productos).

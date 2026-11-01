@@ -24,11 +24,12 @@ function line(left, right) {
   return left + ' '.repeat(space) + right + '\n';
 }
 
-function buildTicket(sale, cfg) {
+function buildTicket(sale, cfg, { reprint = false } = {}) {
   const METHOD = { cash: 'Efectivo', card: 'Tarjeta' };
   let text = '';
   text += cfg.businessName.padStart(Math.floor((WIDTH + cfg.businessName.length) / 2)) + '\n';
   text += '-'.repeat(WIDTH) + '\n';
+  if (reprint) text += 'REIMPRESION\n';
   text += `Ticket: ${sale.ticketNumber}\n`;
   text += `Fecha: ${new Date(sale.date).toLocaleString('es-ES')}\n`;
   text += `Camarero: ${sale.waiter}\n`;
@@ -95,4 +96,10 @@ async function afterSale(sale, cfg) {
   if (problems.length) throw new Error(problems.join('. '));
 }
 
-module.exports = { openDrawer, afterSale };
+// Imprime solo el ticket (desde el histórico de comandas). Lanza error si no hay impresora de tickets.
+async function printTicket(sale, cfg, options) {
+  if (!cfg.ticketPrinterName) throw new Error('No hay impresora de tickets configurada');
+  await sendRaw(cfg.ticketPrinterName, buildTicket(sale, cfg, options));
+}
+
+module.exports = { openDrawer, afterSale, printTicket, buildTicket };

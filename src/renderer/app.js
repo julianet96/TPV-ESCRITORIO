@@ -147,8 +147,19 @@ async function submitLogin() {
 
 // ---------- TPV ----------
 
+// Iniciales para el avatar del camarero: "Camarero 1" -> "C1".
+function initials(name) {
+  return String(name).trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+}
+
+// Color estable por producto (mismo nombre, mismo color) para los iconos de la carta.
+function hueFor(name) {
+  return [...name].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 0);
+}
+
 async function openPos(waiter) {
   $('waiter-name').textContent = waiter.name;
+  $('waiter-avatar').textContent = initials(waiter.name);
   state.cart.clear();
   await refreshMenu();
   showScreen('pos');
@@ -161,6 +172,7 @@ async function refreshMenu() {
   state.menu = await window.tpv.getMenu();
   state.currency = state.menu.currency;
   state.day = state.menu.day;
+  $('business-name').textContent = state.menu.businessName;
   if (!state.menu.categories.some((c) => c.id === state.category)) {
     state.category = state.menu.categories[0]?.id ?? null;
   }
@@ -180,6 +192,8 @@ function renderAll() {
 function renderDay() {
   const open = Boolean(state.day);
   $('btn-day').textContent = open ? 'Cerrar día' : 'Abrir día';
+  $('day-status').textContent = open ? 'Día abierto' : 'Día cerrado';
+  $('day-status').className = `status ${open ? 'open' : 'closed'}`;
   $('day-banner').hidden = open;
 }
 
@@ -203,7 +217,17 @@ function renderProducts() {
   grid.innerHTML = '';
   for (const p of state.menu.products.filter((p) => p.categoryId === state.category)) {
     const btn = document.createElement('button');
-    btn.innerHTML = `${escapeHtml(p.name)}<small>${money(p.priceCents)}</small>`;
+    // El color va por CSSOM: el CSP no permite atributos style en el HTML.
+    const icon = document.createElement('span');
+    icon.className = 'tile-icon';
+    icon.style.setProperty('--hue', hueFor(p.name));
+    icon.textContent = p.name.charAt(0).toUpperCase();
+    const name = document.createElement('span');
+    name.className = 'tile-name';
+    name.textContent = p.name;
+    const price = document.createElement('small');
+    price.textContent = money(p.priceCents);
+    btn.append(icon, name, price);
     btn.disabled = !state.day;
     btn.addEventListener('click', () => {
       state.cart.set(p.id, (state.cart.get(p.id) ?? 0) + 1);
@@ -224,6 +248,7 @@ function renderTicket() {
   const list = $('lines');
   list.innerHTML = '';
   const lines = cartLines();
+  $('ticket-count').textContent = lines.reduce((n, l) => n + l.qty, 0);
 
   for (const { product, qty, subtotal } of lines) {
     const li = document.createElement('li');
@@ -361,6 +386,63 @@ async function openDrawer(code) {
   }
 }
 
+// ---------- Histórico de comandas (últimas 5) ----------
+
+function historyDate(iso) {
+  return new Date(iso).toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+async function openHistory() {
+  let commands;
+  try {
+    commands = await window.tpv.history.list();
+  } catch (err) {
+    return toast(errorText(err), 'bad');
+  }
+
+  const list = $('history-list');
+  list.innerHTML = '';
+  if (commands.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'history-empty';
+    empty.textContent = 'Todavía no hay comandas.';
+    list.appendChild(empty);
+  }
+  for (const c of commands) {
+    const li = document.createElement('li');
+    const info = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = `Ticket ${c.ticketNumber} · ${money(c.totalCents)}`;
+    const meta = document.createElement('small');
+    meta.textContent = `${historyDate(c.date)} · ${c.waiter} · ${c.method === 'cash' ? 'Efectivo' : 'Tarjeta'}`;
+    info.append(title, meta);
+    const btn = document.createElement('button');
+    btn.textContent = 'Imprimir ticket';
+    btn.dataset.printId = c.id;
+    li.append(info, btn);
+    list.appendChild(li);
+  }
+  $('modal-history').hidden = false;
+}
+
+async function printHistoryTicket(btn) {
+  btn.disabled = true;
+  try {
+    await window.tpv.history.print(btn.dataset.printId);
+    toast('Ticket reimpreso');
+  } catch (err) {
+    toast(errorText(err), 'bad');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function logout() {
   await window.tpv.logout();
   state.cart.clear();
@@ -394,6 +476,8 @@ async function submitAdmin() {
 async function loadAdminData() {
   state.admin = await window.tpv.admin.data();
   state.currency = state.admin.settings.currency;
+  // Si no se pueden leer las impresoras, la lista queda vacía y se puede seguir usando la configuración.
+  state.printers = await window.tpv.admin.printers().catch(() => []);
 }
 
 async function leaveSettings() {
@@ -433,6 +517,19 @@ function fieldHtml(name, label, { type = 'text', value = '', placeholder = '', e
 
 function checkHtml(name, label, checked) {
   return `<label class="check"><input type="checkbox" name="${name}" ${checked ? 'checked' : ''}> ${label}</label>`;
+}
+
+// Desplegable con las impresoras instaladas en Windows. Si la guardada ya no aparece, se mantiene marcada.
+function printerSelect(name, label, value) {
+  const installed = state.printers;
+  const options = [
+    `<option value="" ${value ? '' : 'selected'}>— Ninguna —</option>`,
+    ...installed.map((n) => `<option value="${escapeHtml(n)}" ${n === value ? 'selected' : ''}>${escapeHtml(n)}</option>`),
+  ];
+  if (value && !installed.includes(value)) {
+    options.push(`<option value="${escapeHtml(value)}" selected>${escapeHtml(value)} (no encontrada)</option>`);
+  }
+  return `<label>${label}<select name="${name}">${options.join('')}</select></label>`;
 }
 
 function cancelEdit(editing) {
@@ -517,8 +614,11 @@ const TABS = {
   settings() {
     const s = state.admin.settings;
     const body = fieldHtml('businessName', 'Nombre del negocio', { value: s.businessName }) +
-      fieldHtml('ticketPrinterName', 'Impresora de tickets (nombre exacto en Windows)', { value: s.ticketPrinterName, placeholder: 'Vacío = sin impresora de tickets' }) +
-      fieldHtml('drawerPrinterName', 'Impresora con el cajón (nombre exacto en Windows)', { value: s.drawerPrinterName, placeholder: 'Vacío = el cajón no se puede abrir' }) +
+      printerSelect('ticketPrinterName', 'Impresora de tickets', s.ticketPrinterName) +
+      printerSelect('drawerPrinterName', 'Impresora con el cajón', s.drawerPrinterName) +
+      (state.printers.length === 0
+        ? `<p class="hint">No se han encontrado impresoras instaladas en Windows.</p>`
+        : '') +
       `<p class="hint">Imprimir ticket al cobrar con:</p>` +
       checkHtml('printCash', 'Efectivo', s.printCash) +
       checkHtml('printCard', 'Tarjeta', s.printCard) +
@@ -688,6 +788,11 @@ function init() {
   $('btn-day').addEventListener('click', onDayButton);
   $('btn-drawer').addEventListener('click', onDrawerButton);
   $('btn-logout').addEventListener('click', logout);
+  $('btn-history').addEventListener('click', openHistory);
+  $('history-list').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-print-id]');
+    if (btn) printHistoryTicket(btn);
+  });
   $('btn-cash').addEventListener('click', () => pay('cash'));
   $('btn-card').addEventListener('click', () => pay('card'));
   $('btn-clear').addEventListener('click', () => {

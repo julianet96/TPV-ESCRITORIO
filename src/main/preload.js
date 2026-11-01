@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('tpv', {
   // El proceso principal avisa cuando el día se cierra automáticamente.
   onDayClosed: (callback) => ipcRenderer.on('day:closed', (_e, summary) => callback(summary)),
   requestClose: (code) => ipcRenderer.invoke('app:close', code),
+  history: {
+    list: () => ipcRenderer.invoke('history:list'),
+    print: (id) => ipcRenderer.invoke('history:print', id),
+  },
   admin: {
     login: (code) => ipcRenderer.invoke('admin:login', code),
     logout: () => ipcRenderer.invoke('admin:logout'),
@@ -23,5 +27,6 @@ contextBridge.exposeInMainWorld('tpv', {
     saveProduct: (values) => ipcRenderer.invoke('admin:save-product', values),
     saveSettings: (values) => ipcRenderer.invoke('admin:save-settings', values),
     setCode: (values) => ipcRenderer.invoke('admin:set-code', values),
+    printers: () => ipcRenderer.invoke('admin:printers'),
   },
 });

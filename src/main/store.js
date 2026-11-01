@@ -94,6 +94,8 @@ function defaultConfig() {
 function migrateData(d) {
   if (d.currentDay === undefined) d.currentDay = null;
   if (!d.days) d.days = [];
+  // Últimas comandas (máximo 5) para el histórico y la reimpresión de tickets.
+  if (!d.commands) d.commands = [];
   return d;
 }
 
